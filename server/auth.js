@@ -15,6 +15,8 @@ function initAuthentication(app, db) {
   passport.use(new LocalStrategy((email, password, done) => {
     db.authUser(email.toLowerCase(), password)
       .then(user => {
+        console.log(user)
+        console.log(email+ " "+ password)
         if (user) done(null, user);
         else         done({status: 401, msg: "Incorrect username and/or password"}, false);
       })
@@ -33,9 +35,12 @@ function initAuthentication(app, db) {
 
   // Initialize express-session
   app.use(session({
-    secret: "586e60fdeb6f34186ae165a0cea7ee1dfa4105354e8c74610671de0ef9662191",
+    secret: "586e60fdeb6f34186ae165a0cea96e1dfa4105354e8c74610671de0ef9662191",
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 30 * 60 * 1000
+    },
   }));
 
   // Initialize passport middleware

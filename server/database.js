@@ -7,7 +7,6 @@ const crypto = require("crypto");
  * Wrapper around db.al
  */
 const dbAllAsync = (db, sql, params = []) => new Promise((resolve, reject) => {
-  console.log("prenotazioni");
   db.all(sql, params, (err, rows) => {
     if (err) reject(err);
     else     resolve(rows);
@@ -18,6 +17,7 @@ const dbAllAsync = (db, sql, params = []) => new Promise((resolve, reject) => {
  * Wrapper around db.run
  */
 const dbRunAsync = (db, sql, params = []) => new Promise((resolve, reject) => {
+  //console.log("wsf")
   db.run(sql, params, err => {
     if (err) reject(err);
     else     resolve();
@@ -55,23 +55,25 @@ function Database(dbname) {
    */
   this.authUser = (email, password) => new Promise((resolve, reject) => {
     // Get the student with the given email
+    
     dbGetAsync(
       this.db,
-      "select * from students where email = ?",
+      "select * from users where email = ?",
       [email]
     )
-      .then(student => {
+      .then(user => {
         // If there is no such student, resolve to false.
         // This is used instead of rejecting the Promise to differentiate the
         // failure from database errors
-        if (!student) resolve(false);
+        if (!user) resolve(false);
 
         // Verify the password
-        crypto.scrypt(password, student.salt, 32, (err, hash) => {
+        //console.log(user)
+        crypto.scrypt(password, user.salt, 32, (err, hash) => {
           if (err) reject(err);
 
-          if (crypto.timingSafeEqual(hash, Buffer.from(student.hash, "hex")))
-            resolve({id: student.id, username: student.email, name: student.name, fullTime: student.full_time === null ? null : Boolean(student.full_time)}); // Avoid full_time = null being cast to false
+          if (crypto.timingSafeEqual(hash, Buffer.from(user.hash, "hex")))
+            resolve({id: user.id, username: user.email, name: user.name}); // Avoid full_time = null being cast to false
           else resolve(false);
         });
       })
@@ -100,47 +102,70 @@ function Database(dbname) {
    * Retrieve the student with the specified id
    * @returns a Promise that resolves to the user object {id, username, name, fullTime}
    */
-  this.getAereo = async () => {
-    const aerei =  await dbAllAsync(
+  this.getAereo = async (id) => {
+    const aereo =  await dbGetAsync(
       this.db,
-      "select id_aereo, numero_posti, numero_file, tipo_aereo from aereo"
+      "select * from aereo where aereo_id = ?",
+      [id]
     );
-    console.log(aerei);
-    return [...aerei];
+    return {...aereo};
   };
 
+  this.insertPrenotazione = async (id) => {
+    return 1;
+  };
   
   /**
    * Retrieve the student with the specified id
    * @returns a Promise that resolves to the user object {id, username, name, fullTime}
    */
   this.getPrenotazioni = async (aereo_id) => {
-    console.log(aereo_id);
-    const prenotazioni =  await dbAllAsync(
+    //console.log(aereo_id);
+    const postiPrenotati =  await dbAllAsync(
       this.db,
       "select posti_prenotati from prenotazioni where aereo_id = ?",
       [aereo_id]
     );
-    console.log(prenotazioni);
-    return [...prenotazioni];
+    //console.log(prenotazioni);
+    return [...postiPrenotati];
   };
 
    /**
-   * Retrieve the student with the specified id
+   * Retrieve the user with the specified id
    * 
    * @param id the id of the student to retrieve
    * 
    * @returns a Promise that resolves to the user object {id, username, name, fullTime}
    */
    this.getUser = async id => {
-    const student = await dbGetAsync(
+    const user = await dbGetAsync(
       this.db,
-      "select * from users where email = ?",
+      "select * from users where id = ?",
       [id]
     );
 
-    return {...student};
+    return {...user};
   };
+  
+  /**
+   * Retrieve the user with the specified id
+   * 
+   * @param id the id of the student to retrieve
+   * 
+   * @returns a Promise that resolves to the user object {id, username, name, fullTime}
+   */
+  this.insertPrenotazione = async(aereo_id, email_utente, posti_prenotati) => {
+    console.log(posti_prenotati)
+    const user = await dbAllAsync(
+      this.db,
+      "INSERT INTO prenotazioni (aereo_id,email_utente,posti_prenotati) Values (?,?,?)",
+      [aereo_id,email_utente,posti_prenotati]
+    );
+
+    return {...user};
+    return "ds";
+  };
+
   
 }
 

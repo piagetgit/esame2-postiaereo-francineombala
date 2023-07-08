@@ -3,19 +3,20 @@
 const Database = require("./database");
 const express = require("express");
 const cors = require("cors");
-const { body, validationResult } = require("express-validator");
+const { body, validationResult, Result } = require("express-validator");
 const { initAuthentication, isLoggedIn } = require("./auth");
 const passport = require("passport");
 
 const PORT = 3001;
 const app = new express();
 const db = new Database("posti_aereo.db");
+const crypto = require('crypto');
 
 app.use(express.json());
-/*app.use(cors({
-    origin: "http://localhost:5173",
+app.use(cors({
+    //origin: "http://localhost:5173",
     credentials: true
-}));*/
+}));
 
 initAuthentication(app, db);
 
@@ -107,62 +108,103 @@ app.get("/api/aereo/:aereo_id", async (req, res) => {
 
 // POST /api/bookings: Crea una nuova prenotazione
 app.post("/api/bookings", isLoggedIn, async (req, res) => {
+ 
     try {
-      const { aereo_id, numero_posti, lista_posti } = req.body; // Dati della prenotazione forniti dall'utente
+      let { aereo_id, numero_posti, lista_posti } = req.body; // Dati della prenotazione forniti dall'utente
   
       // Verifica se l'aereo selezionato esiste ed è disponibile
       const aereo = await db.getAereo(aereo_id);
       if (!aereo) {
         return res.status(400).json({ errors: ["Invalid flight"] });
       }
-  
+      //console.log(aereo)
       // Verifica se ci sono abbastanza posti disponibili per la prenotazione
-      const prenotazioni = await db.getPrenotazioni(aereo_id);
-      for (const prenotati in prenotazioni) {
-          console.log(prenotazioni);
-      }
-      /*const availableSeats = await db.getAvailableSeats(flightId);
-      if (availableSeats.length < numSeats) {
+      const posti = await db.getPrenotazioni(aereo_id);
+      //console.log(postiPrenotati)
+      const postiPrenotati=[]
+      posti.forEach(element=>{
+        element.posti_prenotati.split(',').forEach(el => {
+            postiPrenotati.push(el)}
+          );
+      })
+      
+      if (aereo.numero_posti * aereo.numero_file < postiPrenotati.length + numero_posti){
         return res.status(400).json({ errors: ["Not enough available seats"] });
       }
   
-      // Crea la prenotazione per i posti selezionati dall'utente
-      const booking = {
-        flightId: flightId,
-        seats: [],
-      };
-  
-      // Metodo 1: Assegnazione automatica dei posti
-      if (selectedSeats.length === 0) {
-        // Assegna automaticamente i posti disponibili al numero richiesto dall'utente
-        for (let i = 0; i < numSeats; i++) {
-          const seat = availableSeats[i];
-          booking.seats.push(seat);
-        }
+      
+      if(lista_posti === ""){
+         //scelta casuale dei posti
+        lista_posti = generateRandomPosto(aereo.numero_file,aereo.numero_posti,postiPrenotati,numero_posti)
       }
-  
-      // Metodo 2: Selezione manuale dei posti
-      else {
-        // Verifica se i posti selezionati sono disponibili
-        for (const seat of selectedSeats) {
-          if (!availableSeats.includes(seat)) {
-            return res.status(400).json({ errors: [`Seat ${seat} is not available`] });
-          }
-          booking.seats.push(seat);
-        }
+
+      console.log(lista_posti)
+      try{
+        await db.insertPrenotazione(aereo_id, req.user.email, lista_posti);
+      }catch (error){
+        console.log(error)
       }
-  
-      // Salva la prenotazione nel database
-      await db.createBooking(booking);
-  
-      // Aggiorna lo stato dei posti nel database
-      await db.updateSeatStatus(flightId, booking.seats, "occupied");
-  */
-      res.json({ message: "Booking created successfully", booking });
+      
+      res.json({responseCode:200, message: "Booking created successfully"});
     } catch (error) {
       res.status(500).json({ errors: ["Database error"] });
     }
   });
+
+  function generateRandomPosto(numeroFile, numeroPosti, postiPrenotati,numeroPostidaPrenotare) {
+    
+    let result=""; 
+    const digits = '123456789'.substring(0,numeroPosti);
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.substring(0,numeroFile);
+  
+    let index = 0;
+
+    while(index < numeroPostidaPrenotare){
+      const randomDigit = digits.charAt(Math.floor(Math.random() * digits.length));
+      const randomLetter = letters.charAt(Math.floor(Math.random() * letters.length));
+      
+      const posto = randomDigit + randomLetter;
+      
+      if(!postiPrenotati.includes(posto)){
+          result+=","+posto;
+          index=index+1;
+      }
+    }
+
+    
+    result = result.slice(1)
+    //console.log("result:"+result)
+    return result;
+  }
+  /**
+ * Authenticate and login
+ */
+app.post(
+  "/api/session",
+  body("username", "username is not a valid email").isEmail(),
+  body("password", "password must be a non-empty string").isString().notEmpty(),
+  (req, res, next) => {
+    // Check if validation is ok
+    const err = validationResult(req);
+    const errList = [];
+    if (!err.isEmpty()) {
+      errList.push(...err.errors.map(e => e.msg));
+      return res.status(400).json({errors: errList});
+    }
+
+    // Perform the actual authentication
+    passport.authenticate("local", (err, user) => {
+      if (err) {
+        res.status(err.status).json({errors: [err.msg]});
+      } else {
+        req.login(user, err => {
+          if (err) return next(err);
+          else res.json({id:user.id, email: user.username, name: user.name});
+        });
+      }
+    })(req, res, next);
+  }
+);
  /*
   //GET `/api/bookings/:userId`
   
@@ -299,11 +341,25 @@ app.post(
     body("password", "Password must be a non-empty string").notEmpty(),
     (req, res, next) => {
       // Check if validation is ok
+      const salt = crypto.randomBytes(16).toString('hex');
+      //const hash = crypto.createHash('sha256').update(req.body.password+sa).digest('hex');
+      
+      crypto.scrypt(req.body.password, salt, 32, (err, derivedKey) => {
+        if (err) throw err;
+      
+        // Convert the derived key to a hexadecimal string
+        const hashedPassword = derivedKey.toString('hex');
+      
+        // Store the hashed password and salt in the database
+        console.log('Hashed password:', hashedPassword);
+        console.log('Salt:', salt);
+      });
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
-  
+      console.log(req.body)
       // Perform the actual authentication
       passport.authenticate("local", (err, user) => {
         if (err) {
