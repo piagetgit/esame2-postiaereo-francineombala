@@ -80,23 +80,6 @@ function Database(dbname) {
       .catch(e => reject(e));
   });
 
-  /**
-   * Retrieve the student with the specified id
-   * 
-   * @param id the id of the student to retrieve
-   * 
-   * @returns a Promise that resolves to the user object {id, username, name, fullTime}
-   */
-  /*this.getStudent = async id => {
-    const student = await dbGetAsync(
-      this.db,
-      "select email as username, name, full_time as fullTime from students where id = ?",
-      [id]
-    );
-
-    return {...student, id, fullTime: student.fullTime === null ? null : Boolean(student.fullTime)};
-  };
-  */
 
   /**
    * Retrieve the student with the specified id
@@ -156,14 +139,11 @@ function Database(dbname) {
    */
   this.insertPrenotazione = async(aereo_id, email_utente, posti_prenotati) => {
     console.log(posti_prenotati)
-    const user = await dbAllAsync(
+    await dbAllAsync(
       this.db,
       "INSERT INTO prenotazioni (aereo_id,email_utente,posti_prenotati) Values (?,?,?)",
       [aereo_id,email_utente,posti_prenotati]
     );
-
-    return {...user};
-    return "ds";
   };
 
   
