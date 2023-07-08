@@ -3,75 +3,76 @@ const SERVER_PORT = 3001;
 
 const SERVER_BASE = `${SERVER_HOST}:${SERVER_PORT}/api/`;
 
-const APICall = async (endpoint, method = "GET", body = undefined, headers = undefined, expectResponse = true) => {
-  let errors = [];
+const ChiamaAPI = async (endpoint, metodo = "GET", corpo = undefined, headers = undefined, aspettaRisposta = true) => {
+  let errori = [];
 
   try {
-    const response = await fetch(new URL(endpoint, SERVER_BASE), {
-        method,
-        body,
-        headers,
-        credentials: "include"
+    const risposta = await fetch(new URL(endpoint, SERVER_BASE), {
+      method: metodo,
+      body: corpo,
+      headers,
+      credentials: "include"
     });
 
-    if (response.ok) {
-      if (expectResponse) return await response.json();
+    if (risposta.ok) {
+      if (aspettaRisposta) return await risposta.json();
     }
-    else errors = (await response.json()).errors;
+    else errori = (await risposta.json()).errors;
   } catch {
-    const err = ["Failed to contact the server"];
+    const err = ["Impossibile contattare il server"];
     throw err;
   }
 
-  if (errors.length !== 0)
-    throw errors;
+  if (errori.length !== 0)
+    throw errori;
 };
+// recupera tutti gli aerei disponibili.
+const recuperaAerei = async () => await ChiamaAPI("aerei");
+// recupera tutti i posti per un determinato aereo.
+const recuperaPosti = async (idAereo) => await ChiamaAPI(`aerei/${idAereo}/posti`);
 
-const fetchAirplanes = async () => await APICall("airplanes");
-
-const fetchSeats = async (airplaneId) => await APICall(`airplanes/${airplaneId}/seats`);
-
-const reserveSeat = async (airplaneId, seatId) => await APICall(
-  `airplanes/${airplaneId}/seats/${seatId}`,
+//  effettua una prenotazione per un elenco di posti su un determinato aereo.
+const prenotaPosti = async (idAereo, posti) => await ChiamaAPI(
+  `aerei/${idAereo}/prenota`,
   "POST",
-  undefined,
+  JSON.stringify({ posti }),
+  { "Content-Type": "application/json" },
+  false
+);
+//annulla una prenotazione per un elenco di posti su un determinato aereo.
+const rilasciaPosti = async (idAereo, posti) => await ChiamaAPI(
+  `aerei/${idAereo}/rilascia`,
+  "POST",
+  JSON.stringify({ posti }),
   { "Content-Type": "application/json" },
   false
 );
 
-const cancelReservation = async (fligthId, seatId) => await APICall(
-  `airplanes/${airplaneId}/seats/${seatId}`,
-  "DELETE",
-  undefined,
-  undefined,
-  false
-);
-
-const login = async (email, password) => await APICall(
-  "session",
+const login = async (nomeUtente, password) => await ChiamaAPI(
+  "sessione",
   "POST",
-  JSON.stringify({username: email, password}),
+  JSON.stringify({ username: nomeUtente, password }),
   { "Content-Type": "application/json" }
 );
 
-const logout = async () => await APICall(
-  "session",
+const logout = async () => await ChiamaAPI(
+  "sessione",
   "DELETE",
   undefined,
   undefined,
   false
 );
 
-const fetchCurrentUser = async () => await APICall("session/current");
+const recuperaUtenteCorrente = async () => await ChiamaAPI("sessione/corrente");
 
 const API = {
-  fetchAirplanes,
-  fetchSeats,
-  reserveSeat,
-  deleteBooking,
+  recuperaAerei,
+  recuperaPosti,
+  prenotaPosti,
+  rilasciaPosti,
   login,
   logout,
-  fetchCurrentUser
+  recuperaUtenteCorrente
 };
 
 export { API };
